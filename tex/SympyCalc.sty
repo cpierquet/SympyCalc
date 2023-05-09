@@ -2,7 +2,8 @@
 % licence                        : Released under the LaTeX Project Public License v1.3c or later, see http://www.latex-project.org/lppl.txtf
 
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{SympyCalc}[2023/05/05 v0.1.0 Sympy commands with TeX printing]
+\ProvidesPackage{SympyCalc}[2023/05/08 v0.1.1 Sympy commands with TeX printing]
+% 0.1.1		Ajout du nombre dérivé + calcul image
 % 0.1		Version initiale
 
 %------Packages utiles
@@ -10,10 +11,12 @@
 
 %------Scripts python
 \begin{python}
+#initialisations
 from sympy import *
 init_printing()
 x, y, z, t = symbols('x y z t')
 
+#commandes génériques
 def latex_fr(expr) :
 	return latex(expr,imaginary_unit='ri',ln_notation=True,decimal_separator='comma').replace("e^","\\text{e}^")
 
@@ -26,6 +29,7 @@ def latex_fr_simpl(expr) :
 def latex_frit_simpl(expr) :
 	return latex(simplify(expr),ln_notation=True,decimal_separator='comma')
 
+#commandes de résolutions
 def latex_fr_resol(expr,var) :
 	if '=' in expr :
 		expr = expr.replace('=','-(') + ')'
@@ -74,14 +78,51 @@ def latex_frit_resolC(expr,var) :
 	res = res.replace("]","\\}")
 	return res
 
+#commandes de nombres dérivés
+def latex_fr_nbderiv(expr,var,pta,pos) :
+	tmpf = Lambda(var,expr)
+	res = (tmpf(var)-tmpf(pta))/(var-pta)
+	res = limit(res,var,pta,pos)
+	res = latex(res,ln_notation=True,decimal_separator='comma')
+	res = res.replace("e^","\\text{e}^")
+	return res
+
+def latex_frit_nbderiv(expr,var,pta,pos) :
+	tmpf = Lambda(var,expr)
+	res = (tmpf(var)-tmpf(pta))/(var-pta)
+	res = limit(res,var,pta,pos)
+	res = latex(res,ln_notation=True,decimal_separator='comma')
+	return res
+
+def latex_fr_nbderiv_simpl(expr,var,pta,pos) :
+	tmpf = Lambda(var,expr)
+	res = (tmpf(var)-tmpf(pta))/(var-pta)
+	res = simplify(limit(res,var,pta,pos))
+	res = latex(res,ln_notation=True,decimal_separator='comma')
+	res = res.replace("e^","\\text{e}^")
+	return res
+
+def latex_frit_nbderiv_simpl(expr,var,pta,pos) :
+	tmpf = Lambda(var,expr)
+	res = (tmpf(var)-tmpf(pta))/(var-pta)
+	res = simplify(limit(res,var,pta,pos))
+	res = latex(res,ln_notation=True,decimal_separator='comma')
+	return res
+
+#Patch pour +oo
 def patch_oo(res) :
 	if res == '\\infty' :
 		return '+\\infty'
 	else :
 		return res
 
+#Commande de forme exponentielle
 def forme_expo(z) :
 	return abs(z)*exp(I*arg(z))
+
+#Commande de calcul d'image
+def imagefct(expr,var,pta) :
+	return expr.subs(var,pta)
 
 \end{python}
 
@@ -112,6 +153,35 @@ def forme_expo(z) :
 	\IfBooleanTF{#1}%
 		{\displaystyle\sympycalc*<#2>{#3}}%
 		{\displaystyle\sympycalc<#2>{#3}}%
+}
+
+%------Image
+\NewDocumentCommand\sympyimage{ s D<>{Simplif} m O{x} m }{%
+	\StrSubstitute{#3}{/}{*S.One/}[\argtmp]%
+	\IfBooleanTF{#1}%*=frit, no*=fr
+	{%
+		\IfStrEq{#2}{Simplif}%
+		{%
+			\py{latex_frit_simpl(imagefct(\argtmp,#4,#5))}%
+		}%
+		{%
+			\py{latex_frit(imagefct(\argtmp,#4,#5))}%
+		}%
+	}%
+	{%
+		\IfStrEq{#2}{Simplif}%
+		{%
+			\py{latex_fr_simpl(imagefct(\argtmp,#4,#5))}%
+		}%
+		{%
+			\py{latex_fr(imagefct(\argtmp,#4,#5))}%
+		}%
+	}%
+}
+\NewDocumentCommand\dsympyimage{ s D<>{Simplif} m O{x} m }{%
+	\IfBooleanTF{#1}%
+	{\displaystyle\sympyimage*<#2>{#3}[#4]{#5}}%
+	{\displaystyle\sympyimage<#2>{#3}[#4]{#5}}%
 }
 
 %------Développer
@@ -171,6 +241,8 @@ def forme_expo(z) :
 		{\displaystyle\sympyfact*<#2>{#3}}%
 		{\displaystyle\sympyfact<#2>{#3}}%
 }
+
+%------Image
 
 %------Dériver
 \NewDocumentCommand\sympyderiv{ s D<>{Simplif} m O{x} }{%
@@ -262,7 +334,7 @@ def forme_expo(z) :
 %------Limite
 \NewDocumentCommand\sympylim{ s D<>{Simplif} m O{x} m O{} }{%
 	\StrSubstitute{#3}{/}{*S.One/}[\argtmp]%
-	\def\poslim{}
+	\def\poslim{'+-'}
 	\IfStrEq{#6}{g}%
 		{\def\poslim{'-'}}{}
 	\IfStrEq{#6}{d}%
@@ -291,6 +363,40 @@ def forme_expo(z) :
 	\IfBooleanTF{#1}%
 		{\displaystyle\sympylim*<#2>{#3}[#4]{#5}[#6]}%
 		{\displaystyle\sympylim<#2>{#3}[#4]{#5}[#6]}%
+}
+
+%------Nb deriv
+\NewDocumentCommand\sympynbderiv{ s D<>{Simplif} m O{x} m O{} }{%
+	\StrSubstitute{#3}{/}{*S.One/}[\argtmp]%
+	\def\poslim{'+-'}
+	\IfStrEq{#6}{g}%
+		{\def\poslim{'-'}}{}
+	\IfStrEq{#6}{d}%
+		{\def\poslim{'+'}}{}
+	\IfBooleanTF{#1}%*=frit, no*=fr
+		{%
+			\IfStrEq{#2}{Simplif}%
+				{%
+					\py{patch_oo(latex_fr_nbderiv_simpl(\argtmp,#4,#5,\poslim))}%
+				}%
+				{%
+					\py{patch_oo(latex_frit_nbderiv_simpl(\argtmp,#4,#5,\poslim))}%
+				}%
+		}%
+		{%
+			\IfStrEq{#2}{Simplif}%
+				{%
+					\py{patch_oo(latex_fr_nbderiv(\argtmp,#4,#5,\poslim))}%
+				}%
+				{%
+					\py{patch_oo(latex_frit_nbderiv(\argtmp,#4,#5,\poslim))}%
+				}%
+		}%
+}
+\NewDocumentCommand\dsympynbderiv{ s D<>{Simplif} m O{x} m O{} }{%
+	\IfBooleanTF{#1}%
+		{\displaystyle\sympynbderiv*<#2>{#3}[#4]{#5}[#6]}%
+		{\displaystyle\sympynbderiv<#2>{#3}[#4]{#5}[#6]}%
 }
 
 %------FormeExpo
